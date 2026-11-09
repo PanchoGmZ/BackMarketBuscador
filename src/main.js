@@ -9,6 +9,7 @@ try {
   await Actor.exit();
 } catch (error) {
   const message = `${error.code ?? 'ERROR'}: ${error.message}`;
+  if (error.diagnostic) log.error(`[DIAGNOSTICO_CONEXION] ${JSON.stringify(error.diagnostic)}`);
   log.error(`[FIN] ${message}; tiempo: ${Date.now() - started} ms.`);
   await Actor.fail({ statusMessage: message });
 }

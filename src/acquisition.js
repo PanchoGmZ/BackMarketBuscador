@@ -1,6 +1,7 @@
 import { readFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { SearchError } from './search.js';
+import { classifyConnectionError } from './diagnostics.js';
 
 const SEARCH_URL = 'https://www.backmarket.com/en-us/search';
 const MAX_BYTES = 4 * 1024 * 1024;
@@ -19,16 +20,19 @@ export async function acquireFixture(filename) {
 }
 
 // Una sola solicitud; no se siguen redirecciones ni se reintentan bloqueos.
-export function createHttpAcquirer({ fetchImpl, timeoutMs = 15000, onHttp = () => {} } = {}) {
+export function createHttpAcquirer({ fetchImpl, timeoutMs = 15000, onHttp = () => {}, proxy = false } = {}) {
   if (typeof fetchImpl !== 'function') throw new TypeError('Se requiere un transporte HTTP explícito.');
   if (!Number.isInteger(timeoutMs) || timeoutMs < 1 || timeoutMs > 60000) throw new TypeError('Timeout inválido.');
   return async ({ query, page = 1 }) => {
     if (page !== 1) throw new SearchError('PAGE_UNVERIFIED', 'La paginación HTTP todavía no está verificada.');
     const url = buildSearchUrl(query);
     const controller = new AbortController();
+    const started = Date.now();
+    let stage = 'request_before_headers';
     const timer = setTimeout(() => controller.abort(), timeoutMs);
     try {
       const response = await fetchImpl(url, { signal: controller.signal, redirect: 'manual', headers: { accept: 'text/html' } });
+      stage = 'response_body';
       onHttp(response.status);
       let httpError;
       if (response.status === 403 || response.status === 401) httpError = new SearchError('ACCESS_DENIED', `Acceso denegado: HTTP ${response.status}.`);
@@ -53,8 +57,10 @@ export function createHttpAcquirer({ fetchImpl, timeoutMs = 15000, onHttp = () =
       return html;
     } catch (error) {
       if (error instanceof SearchError) throw error;
-      if (controller.signal.aborted) throw new SearchError('TIMEOUT', 'La solicitud HTTP agotó el plazo.', { cause: error });
-      throw new SearchError('NETWORK_ERROR', 'No se pudo obtener el HTML de búsqueda.', { cause: error });
+      const { code, diagnostic } = classifyConnectionError(error, { proxy, stage, elapsedMs: Date.now() - started, aborted: controller.signal.aborted });
+      const wrapped = new SearchError(code, 'No se pudo obtener el HTML de búsqueda.', { cause: error });
+      wrapped.diagnostic = diagnostic;
+      throw wrapped;
     } finally { clearTimeout(timer); }
   };
 }

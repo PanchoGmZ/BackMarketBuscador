@@ -46,3 +46,27 @@ test('el modo fixture no se activa en Cloud', async () => {
     await assert.rejects(executeSearch({ query: 'x' }, { actor: {}, log: logger(), fixture: 'iphone.html' }), { code: 'INVALID_MODE' });
   } finally { if (saved === undefined) delete process.env.APIFY_IS_AT_HOME; else process.env.APIFY_IS_AT_HOME = saved; }
 });
+
+test('configuración de proxy inválida conserva causa sin filtrar credenciales', async () => {
+  const log = logger();
+  const secret = 'not-for-logs';
+  const actor = { createProxyConfiguration: async () => ({ newUrl: async () => `http://user:${secret}@proxy.test:8000` }) };
+  await assert.rejects(executeSearch({ query: 'x', proxyConfiguration: { useApifyProxy: true } }, {
+    actor, log, makeProxyAgent: () => { throw Object.assign(new Error(`bad password ${secret}`), { code: 'UND_ERR_INVALID_ARG' }); },
+  }), (error) => {
+    assert.equal(error.code, 'PROXY_ERROR');
+    assert.equal(error.cause.code, 'UND_ERR_INVALID_ARG');
+    assert.equal(error.diagnostic.stage, 'proxy_initialization');
+    assert.doesNotMatch(JSON.stringify(error.diagnostic), /not-for-logs/);
+    return true;
+  });
+  assert.doesNotMatch(log.lines.join('\n'), /not-for-logs/);
+});
+
+test('el cierre del proxy no oculta el error de red principal', async () => {
+  const agent = { close: async () => { throw new Error('close error'); } };
+  await assert.rejects(executeSearch({ query: 'x', proxyConfiguration: { useApifyProxy: true } }, {
+    actor: { createProxyConfiguration: async () => ({ newUrl: async () => 'http://user:pass@proxy.test:8000' }) },
+    log: logger(), makeProxyAgent: () => agent, fetchImpl: async () => { throw Object.assign(new Error('fail'), { code: 'ECONNREFUSED' }); },
+  }), { code: 'TCP_ERROR' });
+});
