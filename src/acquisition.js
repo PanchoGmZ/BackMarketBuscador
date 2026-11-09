@@ -18,9 +18,8 @@ export async function acquireFixture(filename) {
   catch (error) { throw new SearchError('FIXTURE_ERROR', 'No se pudo leer la captura local.', { cause: error }); }
 }
 
-// Preparación para una fuente autorizada. El Actor no instancia este transporte
-// mientras la ruta siga restringida; no existen reintentos ni proxy de evasión.
-export function createHttpAcquirer({ fetchImpl, timeoutMs = 15000 } = {}) {
+// Una sola solicitud; no se siguen redirecciones ni se reintentan bloqueos.
+export function createHttpAcquirer({ fetchImpl, timeoutMs = 15000, onHttp = () => {} } = {}) {
   if (typeof fetchImpl !== 'function') throw new TypeError('Se requiere un transporte HTTP explícito.');
   if (!Number.isInteger(timeoutMs) || timeoutMs < 1 || timeoutMs > 60000) throw new TypeError('Timeout inválido.');
   return async ({ query, page = 1 }) => {
@@ -30,14 +29,17 @@ export function createHttpAcquirer({ fetchImpl, timeoutMs = 15000 } = {}) {
     const timer = setTimeout(() => controller.abort(), timeoutMs);
     try {
       const response = await fetchImpl(url, { signal: controller.signal, redirect: 'manual', headers: { accept: 'text/html' } });
-      if (response.status === 403 || response.status === 401) throw new SearchError('ACCESS_DENIED', `Acceso denegado: HTTP ${response.status}.`);
-      if (response.status === 429) throw new SearchError('RATE_LIMITED', 'Back Market respondió HTTP 429.');
-      if (response.status >= 300 && response.status < 400) throw new SearchError('UNEXPECTED_REDIRECT', `Redirección HTTP ${response.status}; no se sigue automáticamente.`);
-      if (!response.ok) throw new SearchError('HTTP_ERROR', `Error HTTP ${response.status}.`);
+      onHttp(response.status);
+      let httpError;
+      if (response.status === 403 || response.status === 401) httpError = new SearchError('ACCESS_DENIED', `Acceso denegado: HTTP ${response.status}.`);
+      else if (response.status === 429) httpError = new SearchError('RATE_LIMITED', 'Back Market respondió HTTP 429.');
+      else if (response.status >= 300 && response.status < 400) httpError = new SearchError('UNEXPECTED_REDIRECT', `Redirección HTTP ${response.status}; no se sigue automáticamente.`);
+      else if (!response.ok) httpError = new SearchError('HTTP_ERROR', `Error HTTP ${response.status}.`);
+      if (httpError) { await response.body?.cancel().catch(() => {}); throw httpError; }
       const contentType = response.headers.get('content-type') || '';
-      if (!/^text\/html(?:\s*;|\s*$)/i.test(contentType)) throw new SearchError('INVALID_CONTENT_TYPE', 'La respuesta no es HTML.');
+      if (!/^text\/html(?:\s*;|\s*$)/i.test(contentType)) { await response.body?.cancel().catch(() => {}); throw new SearchError('INVALID_CONTENT_TYPE', 'La respuesta no es HTML.'); }
       const advertised = Number(response.headers.get('content-length'));
-      if (advertised > MAX_BYTES) throw new SearchError('RESPONSE_TOO_LARGE', 'La respuesta supera el tamaño permitido.');
+      if (advertised > MAX_BYTES) { await response.body?.cancel().catch(() => {}); throw new SearchError('RESPONSE_TOO_LARGE', 'La respuesta supera el tamaño permitido.'); }
       if (!response.body) throw new SearchError('EMPTY_RESPONSE', 'La respuesta no contiene HTML.');
       const chunks = []; let size = 0;
       for await (const chunk of response.body) {

@@ -1,14 +1,14 @@
 {
   "title": "Buscar productos",
-  "description": "La fuente de búsqueda autorizada está pendiente de integración.",
+  "description": "Búsqueda HTTP live; el acceso y los resultados en Cloud no están verificados.",
   "type": "object",
   "schemaVersion": 1,
   "properties": {
     "query": { "title": "Palabras clave", "type": "string", "description": "Producto a buscar", "editor": "textfield", "minLength": 1, "maxLength": 200 },
     "maxResults": { "title": "Máximo de resultados", "type": "integer", "description": "Cantidad máxima de productos devueltos.", "editor": "number", "default": 10, "minimum": 1, "maximum": 50 },
-    "page": { "title": "Página", "type": "integer", "description": "Página solicitada; actualmente solo se admite la primera página en modo captura.", "editor": "number", "default": 1, "minimum": 1, "maximum": 100 },
-    "proxyConfiguration": { "title": "Proxy", "type": "object", "editor": "proxy", "description": "Reservado; no se utiliza mientras la adquisición live esté deshabilitada." },
-    "diagnosticMode": { "title": "Diagnósticos", "type": "boolean", "editor": "checkbox", "default": false, "description": "Muestra tiempos adicionales del procesamiento local." }
+    "page": { "title": "Página", "type": "integer", "description": "Solo la primera página está implementada y verificada en la captura.", "editor": "number", "default": 1, "minimum": 1, "maximum": 1 },
+    "proxyConfiguration": { "title": "Proxy", "type": "object", "editor": "proxy", "description": "Opcional. Usa únicamente un proxy autorizado; no se utiliza para eludir bloqueos." },
+    "diagnosticMode": { "title": "Diagnósticos", "type": "boolean", "editor": "checkbox", "default": false, "description": "Muestra tiempos adicionales de procesamiento." }
   },
   "required": ["query"]
 }

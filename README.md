@@ -1,6 +1,6 @@
 # BackMarketBuscadorJS
 
-El parser funciona con la captura manual `fixtures/iphone.html`. La adquisición en vivo está **pendiente**; sin la variable de captura el Actor termina con `SOURCE_UNAVAILABLE` y no inventa resultados. Los precios de la captura son históricos, no ofertas actuales.
+El Actor conecta una búsqueda HTTP live al parser y al Dataset. **El acceso y la extracción live no están verificados.** La captura manual `fixtures/iphone.html` se usa solo para desarrollo local; sus precios son históricos, no ofertas actuales.
 
 ## HTML inspeccionado
 
@@ -18,10 +18,12 @@ Instala Node.js 20 o posterior y ejecuta `npm install`. Coloca la captura en `fi
 
 ## Adquisición y Cloud
 
-El [robots.txt de Back Market](https://www.backmarket.com/robots.txt) restringe `*/search` a rastreadores. Esto es independiente de procesar una captura proporcionada manualmente. El modo live permanece deshabilitado: sin `BACKMARKET_FIXTURE` termina en `SOURCE_UNAVAILABLE`, sin solicitudes ni fallback a capturas. Con la variable definida se utiliza exclusivamente el archivo indicado y se registra `Modo fixture`.
+El [robots.txt de Back Market](https://www.backmarket.com/robots.txt) restringe `*/search` a rastreadores. Esto es independiente de procesar una captura proporcionada manualmente. El modo predeterminado live hace una solicitud directa HTTP a la búsqueda nativa y nunca usa la captura como alternativa. `BACKMARKET_FIXTURE` selecciona explícitamente un archivo local; este modo se rechaza en Apify Cloud.
 
-Una comprobación directa el 9 de noviembre de 2026 recibió primero HTTP 301 sin seguir la redirección y, en una segunda solicitud para inspeccionarla, HTTP 403. El acceso quedó detenido tras la denegación. No se utilizó UNBLOCKER ni otro proxy para superarla. `diagnosticMode` muestra tiempos de procesamiento local; `proxyConfiguration` está reservado y no se utiliza en esta versión.
+Una comprobación directa el 9 de noviembre de 2026 recibió primero HTTP 301 sin seguir la redirección y, en una segunda solicitud para inspeccionarla, HTTP 403. El acceso quedó detenido tras la denegación. No se utilizó UNBLOCKER ni otro proxy para superarla. `diagnosticMode` muestra tiempos adicionales. `proxyConfiguration` opcional se pasa al SDK oficial de Apify; usa únicamente un proxy autorizado y no para eludir denegaciones.
 
-`src/acquisition.js` prepara un transporte HTTP independiente con URL nativa, límite de tiempo y tamaño, sin reintentos y sin seguir redirecciones. Clasifica 401/403, 429, desafíos visibles conocidos, respuestas vacías, contenido inesperado y fallos de red. Sus pruebas inyectan un transporte simulado: **no se ha comprobado la solicitud en vivo**, y la detección de desafíos no garantiza reconocer todas sus variantes. La página 2 no está implementada ni verificada.
+`src/acquisition.js` usa un transporte HTTP con URL nativa, límite de tiempo y tamaño, sin reintentos y sin seguir redirecciones. Clasifica 401/403, 429, desafíos visibles conocidos, respuestas vacías, contenido inesperado y fallos de red. Sus pruebas inyectan un transporte simulado: **no se ha comprobado la extracción en vivo**, y la detección de desafíos no garantiza reconocer todas sus variantes. La página 2 no está implementada ni verificada.
 
-Para habilitarlo hay que verificar que el acceso automatizado esté autorizado bajo las condiciones aplicables, conectar explícitamente un transporte permitido al Actor y comprobar respuestas reales, identidad de página, paginación y errores sin eludir desafíos o denegaciones. El HTML guardado no prueba que HTTP entregue resultados sin renderizado. Una vez resuelto y verificado, se podrá utilizar `apify push` o conectar un repositorio independiente conforme a la [documentación de Apify](https://docs.apify.com/actors/development/quick-start/locally). No se ha publicado ni probado en Cloud.
+Antes de una prueba live hay que confirmar que el acceso automatizado esté autorizado bajo las condiciones aplicables. El HTML guardado no prueba que HTTP entregue resultados sin renderizado. Si hay redirección, denegación o desafío, la ejecución falla explícitamente. Una búsqueda sin tarjetas tampoco se presenta como vacía, porque no se ha observado una respuesta vacía real.
+
+Para probar manualmente en Apify, crea un Actor independiente con fuente GitHub, conecta `https://github.com/PanchoGmZ/BackMarketBuscador.git` en la rama `main`, construye la versión y proporciona `{"query":"iPhone 15 Pro","maxResults":10,"page":1,"diagnosticMode":true}`. Deja el proxy sin seleccionar para probar una conexión directa; configúralo solo si su uso está autorizado. Consulta la pestaña Logs y el Dataset en Output. Un 301, 403, 429, desafío o HTML incompatible producirá un error, no datos ficticios. El proyecto no se ha probado en Cloud.
