@@ -3,6 +3,7 @@ import { acquireFixture, createHttpAcquirer } from './acquisition.js';
 import { parseSearchHtml } from './parser.js';
 import { runSearch, validateInput, SearchError } from './search.js';
 import { classifyConnectionError } from './diagnostics.js';
+import { buildSearchUrl } from './acquisition.js';
 
 function proxyError(message, cause, stage) {
   const error = new SearchError('PROXY_ERROR', message, { cause });
@@ -10,7 +11,7 @@ function proxyError(message, cause, stage) {
   return error;
 }
 
-export async function executeSearch(input, { actor, log, fixture, fetchImpl = httpFetch, makeProxyAgent = (url) => new ProxyAgent(url) }) {
+export async function executeSearch(input, { actor, log, fixture, fetchImpl = httpFetch, makeProxyAgent = (url, options) => new ProxyAgent({ uri: url, ...options }) }) {
   const started = Date.now();
   const params = validateInput(input);
   let dispatcher;
@@ -35,15 +36,19 @@ export async function executeSearch(input, { actor, log, fixture, fetchImpl = ht
             const parsed = new URL(url);
             if (!['http:', 'https:'].includes(parsed.protocol)) throw new Error('Unsupported proxy protocol');
             if (Boolean(parsed.username) !== Boolean(parsed.password)) throw new Error('Incomplete proxy credentials');
-            dispatcher = makeProxyAgent(url);
+            dispatcher = makeProxyAgent(url, { requestTls: { rejectUnauthorized: false } });
             const type = input.proxyConfiguration.useApifyProxy ? 'apify' : 'personalizado';
             log.info(`[PROXY] Tipo=${type}; protocolo=${parsed.protocol.slice(0, -1)}; credenciales=${Boolean(parsed.username && parsed.password) ? 'presentes' : 'ausentes'}.`);
+            log.info('[TLS] {"verified":false}');
           } catch (error) { throw proxyError('No se pudo inicializar el proxy.', error, 'proxy_initialization'); }
         } else {
           if (input.proxyConfiguration.useApifyProxy === true || input.proxyConfiguration.proxyUrls?.length) throw proxyError('El SDK no devolvió el proxy solicitado.', new Error('Proxy configuration missing'), 'proxy_configuration');
           log.info('[PROXY] Conexión directa.');
         }
       } else log.info('[PROXY] Conexión directa.');
+      const effectiveUrl = new URL(buildSearchUrl(params.query));
+      effectiveUrl.searchParams.set('q', '[REDACTED]');
+      log.info(`[URL] ${effectiveUrl.href}`);
       log.info('[NAVEGACION] Solicitud HTTP de búsqueda live, sin reintentos.');
       const fetchWithProxy = dispatcher ? (url, options) => fetchImpl(url, { ...options, dispatcher }) : fetchImpl;
       acquire = createHttpAcquirer({ fetchImpl: fetchWithProxy, proxy: Boolean(dispatcher), onHttp: (status) => log.info(`[HTTP] ${status}`) });

@@ -17,6 +17,7 @@ test('flujo live simulado guarda Dataset desde HTML real y sin fallback', { skip
   assert.equal(output.total, 2);
   assert.deepEqual(output, saved);
   assert.equal(saved.results[0].priceType, 'starting_at');
+  assert.ok(!logs.lines.some((line) => line.startsWith('[TLS]')));
   for (const marker of ['[INICIO]', '[PROXY]', '[NAVEGACION]', '[HTTP]', '[HTML_LISTO]', '[PRODUCTOS_ENCONTRADOS]', '[GUARDADO]', '[FIN]']) assert.ok(logs.lines.some((line) => line.includes(marker)), marker);
 });
 
@@ -31,11 +32,18 @@ test('403, 429, red y 301 terminan sin escribir ni reintentar', async () => {
 
 test('el proxy oficial se conecta al transporte y se cierra', { skip: !html && 'Falta fixtures/iphone.html' }, async () => {
   const agent = { closed: false, async close() { this.closed = true; } };
-  let config;
-  const actor = { createProxyConfiguration: async (value) => { config = value; return { newUrl: async () => 'http://example.test:1234' }; }, pushData: async () => {} };
+  let config; let effectiveProxyUrl; let agentOptions;
+  const logs = logger();
+  const proxyUrl = 'http://proxy-user:proxy-password@example.test:1234';
+  const actor = { createProxyConfiguration: async (value) => { config = value; return { newUrl: async () => proxyUrl }; }, pushData: async () => {} };
   const proxyConfiguration = { useApifyProxy: true };
-  await executeSearch({ query: 'iPhone 15 Pro', proxyConfiguration }, { actor, log: logger(), makeProxyAgent: () => agent, fetchImpl: async (_url, options) => { assert.equal(options.dispatcher, agent); return response(html); } });
+  await executeSearch({ query: 'iPhone 15 Pro', proxyConfiguration }, { actor, log: logs, makeProxyAgent: (url, options) => { effectiveProxyUrl = url; agentOptions = options; return agent; }, fetchImpl: async (_url, options) => { assert.equal(options.dispatcher, agent); return response(html); } });
   assert.deepEqual(config, proxyConfiguration);
+  assert.equal(effectiveProxyUrl, proxyUrl);
+  assert.deepEqual(agentOptions, { requestTls: { rejectUnauthorized: false } });
+  assert.ok(logs.lines.includes('[TLS] {"verified":false}'));
+  assert.ok(logs.lines.some((line) => line.includes('https://www.backmarket.com/en-us/search?q=%5BREDACTED%5D')));
+  assert.doesNotMatch(logs.lines.join('\n'), /proxy-password/);
   assert.equal(agent.closed, true);
 });
 
