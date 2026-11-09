@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import { executeSearch } from '../src/runtime.js';
+import { resolveHttpTimeoutMs } from '../src/acquisition.js';
 
 const html = await readFile(new URL('../fixtures/iphone.html', import.meta.url), 'utf8').catch((err) => { if (err.code === 'ENOENT') return null; throw err; });
 const logger = () => { const lines = []; return { lines, info: (line) => lines.push(line) }; };
@@ -36,15 +37,49 @@ test('el proxy oficial se conecta al transporte y se cierra', { skip: !html && '
   const logs = logger();
   const proxyUrl = 'http://proxy-user:proxy-password@example.test:1234';
   const actor = { createProxyConfiguration: async (value) => { config = value; return { newUrl: async () => proxyUrl }; }, pushData: async () => {} };
-  const proxyConfiguration = { useApifyProxy: true };
+  const proxyConfiguration = { useApifyProxy: true, apifyProxyGroups: ['UNBLOCKER'] };
   await executeSearch({ query: 'iPhone 15 Pro', proxyConfiguration }, { actor, log: logs, makeProxyAgent: (url, options) => { effectiveProxyUrl = url; agentOptions = options; return agent; }, fetchImpl: async (_url, options) => { assert.equal(options.dispatcher, agent); return response(html); } });
   assert.deepEqual(config, proxyConfiguration);
   assert.equal(effectiveProxyUrl, proxyUrl);
+  assert.ok(logs.lines.some((line) => line.includes('grupos=UNBLOCKER')));
   assert.deepEqual(agentOptions, { requestTls: { rejectUnauthorized: false } });
   assert.ok(logs.lines.includes('[TLS] {"verified":false}'));
   assert.ok(logs.lines.some((line) => line.includes('https://www.backmarket.com/en-us/search?q=%5BREDACTED%5D')));
   assert.doesNotMatch(logs.lines.join('\n'), /proxy-password/);
   assert.equal(agent.closed, true);
+});
+
+test('presupuestos normal y diagnóstico son configurables, finitos y aplicados al HTTP', { skip: !html && 'Falta fixtures/iphone.html' }, async () => {
+  assert.equal(resolveHttpTimeoutMs(false, {}), 45_000);
+  assert.equal(resolveHttpTimeoutMs(true, {}), 90_000);
+  assert.equal(resolveHttpTimeoutMs(false, { BACKMARKET_HTTP_TIMEOUT_MS: '120' }), 120);
+  assert.equal(resolveHttpTimeoutMs(true, { BACKMARKET_DIAGNOSTIC_HTTP_TIMEOUT_MS: '240' }), 240);
+  assert.throws(() => resolveHttpTimeoutMs(false, { BACKMARKET_HTTP_TIMEOUT_MS: '90001' }), /BACKMARKET_HTTP_TIMEOUT_MS/);
+  assert.throws(() => resolveHttpTimeoutMs(true, { BACKMARKET_DIAGNOSTIC_HTTP_TIMEOUT_MS: '0' }), /BACKMARKET_DIAGNOSTIC_HTTP_TIMEOUT_MS/);
+
+  const run = async (diagnosticMode, delayMs, env) => {
+    const logs = logger();
+    const result = await executeSearch({ query: 'iPhone 15 Pro', diagnosticMode }, {
+      actor: { pushData: async () => {} }, log: logs, env,
+      fetchImpl: async (_url, { signal }) => {
+        await new Promise((resolve) => setTimeout(resolve, delayMs));
+        if (signal.aborted) throw Object.assign(new Error('aborted'), { name: 'AbortError' });
+        return response(html);
+      },
+    });
+    return { result, logs };
+  };
+
+  await assert.rejects(run(false, 140, { BACKMARKET_HTTP_TIMEOUT_MS: '100' }), (error) => {
+    assert.equal(error.code, 'TIMEOUT');
+    assert.equal(error.diagnostic.timeoutSource, 'local_http_abort_timer');
+    return true;
+  });
+  const diagnostic = await run(true, 140, { BACKMARKET_DIAGNOSTIC_HTTP_TIMEOUT_MS: '250' });
+  assert.equal(diagnostic.result.total, 10);
+  assert.ok(diagnostic.logs.lines.some((line) => line.includes('"httpTimeoutMs":250')));
+  assert.ok(diagnostic.logs.lines.some((line) => line.startsWith('[TIEMPO_HTTP]')));
+  assert.ok(diagnostic.logs.lines.some((line) => line.includes('"timeoutMs":250')));
 });
 
 test('el modo fixture no se activa en Cloud', async () => {

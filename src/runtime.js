@@ -1,9 +1,8 @@
 import { fetch as httpFetch, ProxyAgent } from 'undici';
-import { acquireFixture, createHttpAcquirer } from './acquisition.js';
+import { acquireFixture, buildSearchUrl, createHttpAcquirer, resolveHttpTimeoutMs } from './acquisition.js';
 import { parseSearchHtml } from './parser.js';
 import { runSearch, validateInput, SearchError } from './search.js';
 import { classifyConnectionError } from './diagnostics.js';
-import { buildSearchUrl } from './acquisition.js';
 
 function proxyError(message, cause, stage) {
   const error = new SearchError('PROXY_ERROR', message, { cause });
@@ -11,7 +10,7 @@ function proxyError(message, cause, stage) {
   return error;
 }
 
-export async function executeSearch(input, { actor, log, fixture, fetchImpl = httpFetch, makeProxyAgent = (url, options) => new ProxyAgent({ uri: url, ...options }) }) {
+export async function executeSearch(input, { actor, log, fixture, fetchImpl = httpFetch, makeProxyAgent = (url, options) => new ProxyAgent({ uri: url, ...options }), env = process.env }) {
   const started = Date.now();
   const params = validateInput(input);
   let dispatcher;
@@ -38,7 +37,9 @@ export async function executeSearch(input, { actor, log, fixture, fetchImpl = ht
             if (Boolean(parsed.username) !== Boolean(parsed.password)) throw new Error('Incomplete proxy credentials');
             dispatcher = makeProxyAgent(url, { requestTls: { rejectUnauthorized: false } });
             const type = input.proxyConfiguration.useApifyProxy ? 'apify' : 'personalizado';
-            log.info(`[PROXY] Tipo=${type}; protocolo=${parsed.protocol.slice(0, -1)}; credenciales=${Boolean(parsed.username && parsed.password) ? 'presentes' : 'ausentes'}.`);
+            const groups = input.proxyConfiguration.apifyProxyGroups;
+            const safeGroups = Array.isArray(groups) ? groups.filter((group) => typeof group === 'string' && /^[A-Z0-9_-]{1,40}$/.test(group)) : [];
+            log.info(`[PROXY] Tipo=${type}; protocolo=${parsed.protocol.slice(0, -1)}; grupos=${safeGroups.length ? safeGroups.join(',') : 'automático'}; credenciales=${Boolean(parsed.username && parsed.password) ? 'presentes' : 'ausentes'}.`);
             log.info('[TLS] {"verified":false}');
           } catch (error) { throw proxyError('No se pudo inicializar el proxy.', error, 'proxy_initialization'); }
         } else {
@@ -49,9 +50,12 @@ export async function executeSearch(input, { actor, log, fixture, fetchImpl = ht
       const effectiveUrl = new URL(buildSearchUrl(params.query));
       effectiveUrl.searchParams.set('q', '[REDACTED]');
       log.info(`[URL] ${effectiveUrl.href}`);
+      const httpTimeoutMs = resolveHttpTimeoutMs(Boolean(input.diagnosticMode), env);
+      const totalBudgetMs = httpTimeoutMs + 30_000;
+      log.info(`[LIMITES] ${JSON.stringify({ httpTimeoutMs, totalBudgetMs, parsingDatasetCloseMarginMs: 30_000, totalBudgetEnforcedBy: 'Apify run timeout must be >= totalBudgetMs' })}`);
       log.info('[NAVEGACION] Solicitud HTTP de búsqueda live, sin reintentos.');
       const fetchWithProxy = dispatcher ? (url, options) => fetchImpl(url, { ...options, dispatcher }) : fetchImpl;
-      acquire = createHttpAcquirer({ fetchImpl: fetchWithProxy, proxy: Boolean(dispatcher), onHttp: (status) => log.info(`[HTTP] ${status}`) });
+      acquire = createHttpAcquirer({ fetchImpl: fetchWithProxy, timeoutMs: httpTimeoutMs, proxy: Boolean(dispatcher), onHttp: (status) => log.info(`[HTTP] ${status}`), onTiming: (timing) => log.info(`[TIEMPO_HTTP] ${JSON.stringify(timing)}`) });
     }
     const output = await runSearch(input, { source: async () => {
       const start = Date.now();

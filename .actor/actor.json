@@ -4,6 +4,10 @@
   "title": "Back Market Buscador JS (live sin verificar)",
   "description": "Búsqueda HTTP de Back Market; acceso y resultados en vivo sin verificar.",
   "version": "0.1",
+  "environmentVariables": {
+    "BACKMARKET_HTTP_TIMEOUT_MS": "45000",
+    "BACKMARKET_DIAGNOSTIC_HTTP_TIMEOUT_MS": "90000"
+  },
   "input": "./input_schema.json",
   "output": "./output_schema.json",
   "storages": { "dataset": "./dataset_schema.json" },

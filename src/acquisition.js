@@ -5,6 +5,17 @@ import { classifyConnectionError } from './diagnostics.js';
 
 const SEARCH_URL = 'https://www.backmarket.com/en-us/search';
 const MAX_BYTES = 4 * 1024 * 1024;
+export const HTTP_TIMEOUT_LIMITS = Object.freeze({ normalMs: 45_000, diagnosticMs: 90_000 });
+
+export function resolveHttpTimeoutMs(diagnosticMode = false, env = process.env) {
+  const name = diagnosticMode ? 'BACKMARKET_DIAGNOSTIC_HTTP_TIMEOUT_MS' : 'BACKMARKET_HTTP_TIMEOUT_MS';
+  const maximum = diagnosticMode ? HTTP_TIMEOUT_LIMITS.diagnosticMs : HTTP_TIMEOUT_LIMITS.normalMs;
+  const fallback = maximum;
+  const raw = env[name];
+  const value = raw === undefined ? fallback : Number(raw);
+  if (!Number.isInteger(value) || value < 1 || value > maximum) throw new SearchError('INVALID_TIMEOUT_CONFIG', `${name} debe ser entero entre 1 y ${maximum} ms.`);
+  return value;
+}
 
 export function buildSearchUrl(query) {
   if (typeof query !== 'string' || !query.trim()) throw new SearchError('INVALID_INPUT', 'La búsqueda es obligatoria.');
@@ -20,9 +31,9 @@ export async function acquireFixture(filename) {
 }
 
 // Una sola solicitud; no se siguen redirecciones ni se reintentan bloqueos.
-export function createHttpAcquirer({ fetchImpl, timeoutMs = 15000, onHttp = () => {}, proxy = false } = {}) {
+export function createHttpAcquirer({ fetchImpl, timeoutMs = HTTP_TIMEOUT_LIMITS.normalMs, onHttp = () => {}, onTiming = () => {}, proxy = false } = {}) {
   if (typeof fetchImpl !== 'function') throw new TypeError('Se requiere un transporte HTTP explícito.');
-  if (!Number.isInteger(timeoutMs) || timeoutMs < 1 || timeoutMs > 60000) throw new TypeError('Timeout inválido.');
+  if (!Number.isInteger(timeoutMs) || timeoutMs < 1 || timeoutMs > HTTP_TIMEOUT_LIMITS.diagnosticMs) throw new TypeError('Timeout inválido.');
   return async ({ query, page = 1 }) => {
     if (page !== 1) throw new SearchError('PAGE_UNVERIFIED', 'La paginación HTTP todavía no está verificada.');
     const url = buildSearchUrl(query);
@@ -61,6 +72,9 @@ export function createHttpAcquirer({ fetchImpl, timeoutMs = 15000, onHttp = () =
       const wrapped = new SearchError(code, 'No se pudo obtener el HTML de búsqueda.', { cause: error });
       wrapped.diagnostic = diagnostic;
       throw wrapped;
-    } finally { clearTimeout(timer); }
+    } finally {
+      clearTimeout(timer);
+      onTiming({ elapsedMs: Date.now() - started, timeoutMs, timeoutSource: controller.signal.aborted ? 'local_http_abort_timer' : null });
+    }
   };
 }

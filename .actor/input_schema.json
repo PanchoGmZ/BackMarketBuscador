@@ -8,7 +8,7 @@
     "maxResults": { "title": "Máximo de resultados", "type": "integer", "description": "Cantidad máxima de productos devueltos.", "editor": "number", "default": 10, "minimum": 1, "maximum": 50 },
     "page": { "title": "Página", "type": "integer", "description": "Solo la primera página está implementada y verificada en la captura.", "editor": "number", "default": 1, "minimum": 1, "maximum": 1 },
     "proxyConfiguration": { "title": "Proxy", "type": "object", "editor": "proxy", "description": "Opcional. Usa únicamente un proxy autorizado; no se utiliza para eludir bloqueos." },
-    "diagnosticMode": { "title": "Diagnósticos", "type": "boolean", "editor": "checkbox", "default": false, "description": "Muestra tiempos adicionales de procesamiento." }
+    "diagnosticMode": { "title": "Diagnósticos", "type": "boolean", "editor": "checkbox", "default": false, "description": "Usa hasta 90 s para HTTP (normal: 45 s); configura el timeout del Run en al menos 120 s." }
   },
   "required": ["query"]
 }

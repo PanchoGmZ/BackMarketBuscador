@@ -31,6 +31,6 @@ export function classifyConnectionError(error, { proxy = false, stage = 'request
   else if (codes.some((c) => c === 'ENOTFOUND' || c === 'EAI_AGAIN')) code = 'DNS_ERROR';
   else if (codes.some((c) => ['ECONNREFUSED', 'ECONNRESET', 'EHOSTUNREACH', 'ENETUNREACH', 'UND_ERR_SOCKET'].includes(c))) code = 'TCP_ERROR';
   else if (codes.some((c) => c.startsWith('UND_ERR_'))) code = 'UNDICI_ERROR';
-  const diagnostic = { stage, proxy, elapsedMs, codes, ...(connectStatus !== null ? { connectStatus } : {}) };
+  const diagnostic = { stage, proxy, elapsedMs, codes, ...(aborted ? { timeoutSource: 'local_http_abort_timer' } : {}), ...(connectStatus !== null ? { connectStatus } : {}) };
   return { code, diagnostic };
 }
