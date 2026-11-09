@@ -1,0 +1,12 @@
+node_modules/
+storage/
+fixtures/
+.env
+.env.*
+!.env.example
+*.log
+*.tmp
+coverage/
+.DS_Store
+credentials.json
+*token*

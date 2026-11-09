@@ -1,0 +1,7 @@
+node_modules
+storage
+fixtures
+.git
+.env*
+*.log
+coverage

@@ -1,0 +1,5 @@
+{
+  "actorOutputSchemaVersion": 1,
+  "title": "Resultados de búsqueda",
+  "properties": { "results": { "type": "string", "title": "Dataset", "template": "{{links.apiDefaultDatasetUrl}}/items" } }
+}

@@ -1,0 +1,11 @@
+{
+  "actorSpecification": 1,
+  "name": "backmarket-buscador-js",
+  "title": "Back Market Buscador JS (fuente pendiente)",
+  "description": "Infraestructura de búsqueda; requiere una fuente de resultados autorizada.",
+  "version": "0.1",
+  "input": "./input_schema.json",
+  "output": "./output_schema.json",
+  "storages": { "dataset": "./dataset_schema.json" },
+  "dockerfile": "../Dockerfile"
+}
