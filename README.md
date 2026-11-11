@@ -12,13 +12,13 @@ La fuente se entrega a `runSearch`, que escribe un solo registro `{ query, total
 
 ## F5 y pruebas
 
-Instala Node.js 20 o posterior y ejecuta `npm install`. Coloca la captura en `fixtures/iphone.html`, y crea `storage/key_value_stores/default/INPUT.json` con `{"query":"iPhone 15 Pro","maxResults":10,"page":1}`. En VS Code pulsa F5 con **Actor local**: esta configuración establece `BACKMARKET_FIXTURE=iphone.html`. El Dataset se encuentra en `storage/datasets/default/`. Usa un almacenamiento vacío para separar ejecuciones.
+Instala Node.js 20 o posterior y ejecuta `npm install`. Coloca la captura en `fixtures/iphone.html`. Para pruebas con esa captura usa `BACKMARKET_FIXTURE=iphone.html` en la configuracion F5 **Actor local**. Para una busqueda live local, edita `input.json` y ejecuta `apify run` sin argumentos. El Dataset se encuentra en `storage/datasets/default/`.
 
 `npm test` ejecuta las pruebas, incluida la captura real y una ejecución del SDK con almacenamiento temporal local. Para elegir otra captura local desde PowerShell, establece `$env:BACKMARKET_FIXTURE='nombre.html'` y ejecuta `npm start`; el archivo debe estar en `fixtures/`. Las capturas se excluyen de Git y Docker porque pueden contener datos de la sesión de navegación; deben suministrarse por separado para reproducir las pruebas. No se conectan proxies ni se realizan solicitudes en este modo.
 
 ## Adquisición y Cloud
 
-El [robots.txt de Back Market](https://www.backmarket.com/robots.txt) restringe `*/search` a rastreadores. Esto es independiente de procesar una captura proporcionada manualmente. El modo predeterminado live hace una solicitud directa HTTP a la búsqueda nativa y nunca usa la captura como alternativa. `BACKMARKET_FIXTURE` selecciona explícitamente un archivo local; este modo se rechaza en Apify Cloud.
+El [robots.txt de Back Market](https://www.backmarket.com/robots.txt) restringe `*/search` a rastreadores. Esto es independiente de procesar una captura proporcionada manualmente. El modo live hace una solicitud HTTP a la búsqueda nativa y nunca usa la captura como alternativa. `BACKMARKET_FIXTURE` selecciona explícitamente un archivo local; este modo se rechaza en Apify Cloud.
 
 Una comprobación directa el 9 de noviembre de 2026 recibió primero HTTP 301 sin seguir la redirección y, en una segunda solicitud para inspeccionarla, HTTP 403. El acceso quedó detenido tras la denegación. No se utilizó UNBLOCKER ni otro proxy para superarla. `diagnosticMode` muestra tiempos adicionales. `proxyConfiguration` opcional se pasa al SDK oficial de Apify; usa únicamente un proxy autorizado y no para eludir denegaciones.
 
@@ -38,7 +38,7 @@ Antes de una prueba live hay que confirmar que el acceso automatizado esté auto
 
 Para probar manualmente en Apify, crea un Actor independiente con fuente GitHub, conecta `https://github.com/PanchoGmZ/BackMarketBuscador.git` en la rama `main`, construye la versión y proporciona `{"query":"iPhone 15 Pro","maxResults":10,"page":1,"diagnosticMode":true}`. Deja el proxy sin seleccionar para probar una conexión directa; configúralo solo si su uso está autorizado. Consulta la pestaña Logs y el Dataset en Output. Un 301, 403, 429, desafío o HTML incompatible producirá un error, no datos ficticios. El proyecto no se ha probado en Cloud.
 
-## Conexion local mediante VPN del sistema
+## Conexi?n local mediante VPN del sistema
 
 Cloud conserva el transporte UNBLOCKER, autenticacion, TLS y tratamiento de redirecciones anteriores. Si se omite `proxyConfiguration`, se utiliza Apify Proxy con grupo UNBLOCKER. El Input Cloud existente no cambia.
 
@@ -48,13 +48,15 @@ Solo en modo directo se siguen hasta cinco redirecciones GET 301/302/303/307/308
 
 Prueba real local del 11 de noviembre de 2026: Windows/Node 24 recibio HTTP 301 hacia `https://www.backmarket.com/testchallengepage`. Se clasifica como `ACCESS_CHALLENGE` y no se sigue. No se obtuvieron productos nuevos ni se puede afirmar que la conexion VPN disponible permita la busqueda. No se intento superar el desafio. Cloud no se ejecuto; su funcionamiento previo es el confirmado por el usuario.
 
-Desde PowerShell, con la VPN conectada:
+## Ejecución local con `apify run`
+
+Edita `input.json` en la raiz y ejecuta `apify run` desde esta carpeta. El inicio lee y valida ese archivo cuando no hay un Input de ejecucion explicito. En CLI, el Input explicito (`--input`/`--input-file`) tiene prioridad; el Input implicito persistido bajo `INPUT` no desplaza el archivo local. En Apify Cloud no se lee `input.json`: se exige el Input de la plataforma. El archivo local esta excluido de la imagen Docker.
+
+El Input predeterminado busca `iphone 13` con `maxResults: 10`, diagnostico activado y proxy oficial UNBLOCKER. Para el proxy, inicia sesion una vez con `apify login`; el inicio local obtiene el token con `apify auth token` y lo entrega al SDK solo en memoria. En Cloud no ejecuta la CLI ni consulta el perfil local. Si la cuenta no tiene acceso al proxy, la solicitud falla; no cambia a conexion directa. No hay tokens en `input.json`. En esta maquina `apify auth token` informo que no hay una sesion valida, asi que la busqueda real requiere iniciar sesion una vez antes de repetir el comando.
 
 ```powershell
 Set-Location C:\Users\USUARIO\Desktop\backmarket-buscador
-npm ci
-Remove-Item Env:BACKMARKET_FIXTURE -ErrorAction SilentlyContinue
-apify run --input-file .\input-vpn.json
+apify run
 ```
 
-`input-vpn.json` contiene la consulta `iphone 13` y desactiva Apify Proxy. El CLI puede avisar que no hay login; este modo no lo necesita. Una ejecucion exitosa escribe un unico registro en `storage/datasets/default/000000001.json`. Ante un desafio/error no se escribe un resultado comercial. El CLI limpia los almacenes locales al iniciar por defecto. No hay fallback a fixtures.
+El Dataset se guarda en `storage/datasets/default/`. La CLI puede purgar el almacenamiento antes de iniciar; `input.json` está fuera de `storage`, así que se conserva. Los errores de red, desafío o parsing no escriben un registro comercial.

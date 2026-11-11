@@ -4,6 +4,7 @@
   "page": 1,
   "diagnosticMode": true,
   "proxyConfiguration": {
-    "useApifyProxy": false
+    "useApifyProxy": true,
+    "apifyProxyGroups": ["UNBLOCKER"]
   }
 }

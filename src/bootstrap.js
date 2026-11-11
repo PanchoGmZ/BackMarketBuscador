@@ -1,0 +1,6 @@
+import { hydrateLocalApifyToken } from './local-auth.js';
+
+// Local `apify run` keeps the CLI login in its credential store and does not
+// expose it to the Actor process. Hydrate it only in memory for SDK proxy auth.
+hydrateLocalApifyToken();
+await import('./main.js');

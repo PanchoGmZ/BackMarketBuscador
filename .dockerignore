@@ -5,3 +5,5 @@ fixtures
 .env*
 *.log
 coverage
+
+input.json

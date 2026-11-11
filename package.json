@@ -7,7 +7,7 @@
     "node": ">=20"
   },
   "scripts": {
-    "start": "node src/main.js",
+    "start": "node src/bootstrap.js",
     "test": "node --test"
   },
   "dependencies": {

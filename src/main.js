@@ -1,10 +1,16 @@
 import { Actor, log } from 'apify';
 import { executeSearch } from './runtime.js';
+import { loadActorInput } from './input.js';
+import { assertLocalProxyAuth } from './local-auth.js';
+import { validateInput } from './search.js';
 
 await Actor.init();
 const started = Date.now();
 try {
-  const input = await Actor.getInput();
+  const { input, source } = await loadActorInput({ actor: Actor });
+  log.info(`[INPUT] Origen=${source}.`);
+  validateInput(input);
+  if (!process.env.BACKMARKET_FIXTURE) assertLocalProxyAuth(input);
   await executeSearch(input, { actor: Actor, log, fixture: process.env.BACKMARKET_FIXTURE });
   await Actor.exit();
 } catch (error) {
