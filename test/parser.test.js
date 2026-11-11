@@ -58,6 +58,8 @@ test('el SDK escribe el Dataset local desde la captura real', { skip: !html && '
     delete env.APIFY_IS_AT_HOME;
     const child = spawnSync(process.execPath, ['src/main.js'], { cwd: resolve('.'), env, encoding: 'utf8', timeout: 30000 });
     assert.equal(child.status, 0, child.stdout + child.stderr);
+    assert.match(child.stdout, /\[ACTOR_INICIALIZACION\]/);
+    assert.match(child.stdout, /\[ACTOR_DURACION\]/);
     const files = await readdir(join(dir, 'datasets', 'default'));
     const items = files.filter((name) => name.endsWith('.json'));
     assert.equal(items.length, 1);

@@ -31,12 +31,13 @@ export async function unavailableSource() {
   throw new SearchError('SOURCE_UNAVAILABLE', 'No hay una fuente de búsqueda autorizada y verificada. No se realizó ninguna solicitud.');
 }
 
-export async function runSearch(input, { source = unavailableSource, write } = {}) {
+export async function runSearch(input, { source = unavailableSource, write, onDeduplication = () => {} } = {}) {
   const params = validateInput(input);
   if (typeof write !== 'function') throw new TypeError('Se requiere una función de escritura.');
   const response = await source(params);
   if (!response || !Array.isArray(response.results)) throw new SearchError('INVALID_SOURCE_RESPONSE', 'La fuente no devolvió un listado válido.');
   if (!response.results.length && response.confirmedEmpty !== true) throw new SearchError('COMMERCIAL_DATA_NOT_FOUND', 'La fuente no confirmó que la búsqueda estuviera vacía.');
+  const deduplicationStarted = performance.now();
   const seen = new Set();
   const results = [];
   for (const item of response.results) {
@@ -46,6 +47,7 @@ export async function runSearch(input, { source = unavailableSource, write } = {
     results.push(product);
     if (results.length >= params.maxResults) break;
   }
+  onDeduplication({ elapsedMs: performance.now() - deduplicationStarted, candidates: response.results.length, results: results.length });
   const output = { query: params.query, total: results.length, results };
   await write(output);
   return output;

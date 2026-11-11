@@ -11,7 +11,8 @@ function proxyError(message, cause, stage) {
 }
 
 export async function executeSearch(input, { actor, log, fixture, fetchImpl = httpFetch, makeProxyAgent = (url, options) => new ProxyAgent({ uri: url, ...options }), env = process.env }) {
-  const started = Date.now();
+  const started = performance.now();
+  const metrics = { proxySetupMs: null, acquisitionMs: null, parsingMs: null, cardsParsed: null, deduplicationMs: null, datasetMs: null, dispatcherCloseMs: null };
   const params = validateInput(input);
   let dispatcher;
   let failure;
@@ -24,6 +25,7 @@ export async function executeSearch(input, { actor, log, fixture, fetchImpl = ht
       log.info('[NAVEGACION] Modo fixture: captura local, no son datos actuales.');
       acquire = () => acquireFixture(fixture);
     } else {
+      const proxyStarted = performance.now();
       const proxyConfiguration = input.proxyConfiguration ?? { useApifyProxy: true, apifyProxyGroups: ['UNBLOCKER'] };
       const direct = proxyConfiguration.useApifyProxy === false && !proxyConfiguration.proxyUrls?.length;
       if (!direct) {
@@ -49,6 +51,7 @@ export async function executeSearch(input, { actor, log, fixture, fetchImpl = ht
           log.info('[PROXY] Conexión directa.');
         }
       } else log.info('[PROXY] Conexión directa.');
+      metrics.proxySetupMs = performance.now() - proxyStarted;
       const effectiveUrl = new URL(buildSearchUrl(params.query));
       effectiveUrl.searchParams.set('q', '[REDACTED]');
       log.info(`[URL] ${effectiveUrl.href}`);
@@ -60,31 +63,39 @@ export async function executeSearch(input, { actor, log, fixture, fetchImpl = ht
       acquire = createHttpAcquirer({ fetchImpl: fetchWithProxy, timeoutMs: httpTimeoutMs, proxy: Boolean(dispatcher), followDirectRedirects: direct, onFinalUrl: (url) => log.info(`[URL_FINAL] ${url}`), onHttp: (status, url) => log.info(`[HTTP] ${status} ${url}`), onTiming: (timing) => log.info(`[TIEMPO_HTTP] ${JSON.stringify(timing)}`) });
     }
     const output = await runSearch(input, { source: async () => {
-      const start = Date.now();
-      const html = await acquire(params);
-      log.info(`[HTML_LISTO] Adquisición: ${Date.now() - start} ms.`);
-      const parseStart = Date.now();
-      const parsed = parseSearchHtml(html, params);
-      if (input.diagnosticMode) log.info(`[DIAGNOSTICO] Parsing: ${Date.now() - parseStart} ms.`);
+      const start = performance.now();
+      let html;
+      try { html = await acquire(params); } finally { metrics.acquisitionMs = performance.now() - start; }
+      log.info(`[HTML_LISTO] Adquisición: ${performance.now() - start} ms.`);
+      const parseStart = performance.now();
+      let parsed;
+      try { parsed = parseSearchHtml(html, params); } finally { metrics.parsingMs = performance.now() - parseStart; }
+      metrics.cardsParsed = parsed.results.length;
+      if (input.diagnosticMode) log.info(`[DIAGNOSTICO] Parsing: ${metrics.parsingMs} ms.`);
       return parsed;
-    }, write: async (data) => {
+    }, onDeduplication: ({ elapsedMs }) => { metrics.deduplicationMs = elapsedMs; }, write: async (data) => {
       log.info(`[PRODUCTOS_ENCONTRADOS] ${data.total}`);
-      const start = Date.now();
-      await actor.pushData(data);
-      log.info(`[GUARDADO] Dataset escrito en ${Date.now() - start} ms.`);
+      const start = performance.now();
+      try { await actor.pushData(data); } finally { metrics.datasetMs = performance.now() - start; }
+      log.info(`[GUARDADO] Dataset escrito en ${performance.now() - start} ms.`);
     } });
-    log.info(`[FIN] Resultados: ${output.total}; tiempo: ${Date.now() - started} ms.`);
+    log.info(`[FIN] Resultados: ${output.total}; tiempo: ${performance.now() - started} ms.`);
     return output;
   } catch (error) {
     failure = error;
     throw error;
   } finally {
-    if (dispatcher) {
-      try { await dispatcher.close(); }
-      catch (error) {
-        if (!failure) throw proxyError('No se pudo cerrar el proxy.', error, 'proxy_close');
-        log.warning?.('[PROXY] Error al cerrar recursos después del fallo principal.');
+    try {
+      if (dispatcher) {
+        const closeStarted = performance.now();
+        try { await dispatcher.close(); }
+        catch (error) {
+          if (!failure) throw proxyError('No se pudo cerrar el proxy.', error, 'proxy_close');
+          log.warning?.('[PROXY] Error al cerrar recursos después del fallo principal.');
+        } finally { metrics.dispatcherCloseMs = performance.now() - closeStarted; }
       }
+    } finally {
+      log.info(`[RENDIMIENTO] ${JSON.stringify({ ...metrics, runtimeMs: performance.now() - started })}`);
     }
   }
 }
