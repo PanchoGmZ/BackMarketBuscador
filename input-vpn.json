@@ -1,0 +1,9 @@
+{
+  "query": "iphone 13",
+  "maxResults": 10,
+  "page": 1,
+  "diagnosticMode": true,
+  "proxyConfiguration": {
+    "useApifyProxy": false
+  }
+}

@@ -37,3 +37,24 @@ Las pruebas offline incluyen un proxy HTTP local con CONNECT y autenticación Ba
 Antes de una prueba live hay que confirmar que el acceso automatizado esté autorizado bajo las condiciones aplicables. El HTML guardado no prueba que HTTP entregue resultados sin renderizado. Si hay redirección, denegación o desafío, la ejecución falla explícitamente. Una búsqueda sin tarjetas tampoco se presenta como vacía, porque no se ha observado una respuesta vacía real.
 
 Para probar manualmente en Apify, crea un Actor independiente con fuente GitHub, conecta `https://github.com/PanchoGmZ/BackMarketBuscador.git` en la rama `main`, construye la versión y proporciona `{"query":"iPhone 15 Pro","maxResults":10,"page":1,"diagnosticMode":true}`. Deja el proxy sin seleccionar para probar una conexión directa; configúralo solo si su uso está autorizado. Consulta la pestaña Logs y el Dataset en Output. Un 301, 403, 429, desafío o HTML incompatible producirá un error, no datos ficticios. El proyecto no se ha probado en Cloud.
+
+## Conexion local mediante VPN del sistema
+
+Cloud conserva el transporte UNBLOCKER, autenticacion, TLS y tratamiento de redirecciones anteriores. Si se omite `proxyConfiguration`, se utiliza Apify Proxy con grupo UNBLOCKER. El Input Cloud existente no cambia.
+
+Para conexion directa, usar `proxyConfiguration: { "useApifyProxy": false }` (sin `proxyUrls`). Este modo no llama a `Actor.createProxyConfiguration`, no construye ProxyAgent y no requiere login de Apify. La VPN se administra fuera de esta aplicacion. Los proxies personalizados explicitamente configurados conservan el transporte anterior.
+
+Solo en modo directo se siguen hasta cinco redirecciones GET 301/302/303/307/308. Los destinos permitidos son HTTPS en `www.backmarket.com` o `backmarket.com`, puerto estandar, rutas `/en-us/search` y `/en-us/search/`, sin credenciales. Se resuelve Location relativo o absoluto; se conservan sus parametros y se recupera `q` de la URL anterior si Location lo omite. Bucles, Location ausente, destinos inesperados y exceso de saltos producen errores explicitos. No se reintentan solicitudes fallidas. Todos los saltos y lectura del cuerpo comparten el mismo AbortSignal y presupuesto de 45/90 segundos; los cuerpos de redireccion se cancelan. Se registra cada HTTP y URL final con valores de parametros ocultos.
+
+Prueba real local del 11 de noviembre de 2026: Windows/Node 24 recibio HTTP 301 hacia `https://www.backmarket.com/testchallengepage`. Se clasifica como `ACCESS_CHALLENGE` y no se sigue. No se obtuvieron productos nuevos ni se puede afirmar que la conexion VPN disponible permita la busqueda. No se intento superar el desafio. Cloud no se ejecuto; su funcionamiento previo es el confirmado por el usuario.
+
+Desde PowerShell, con la VPN conectada:
+
+```powershell
+Set-Location C:\Users\USUARIO\Desktop\backmarket-buscador
+npm ci
+Remove-Item Env:BACKMARKET_FIXTURE -ErrorAction SilentlyContinue
+apify run --input-file .\input-vpn.json
+```
+
+`input-vpn.json` contiene la consulta `iphone 13` y desactiva Apify Proxy. El CLI puede avisar que no hay login; este modo no lo necesita. Una ejecucion exitosa escribe un unico registro en `storage/datasets/default/000000001.json`. Ante un desafio/error no se escribe un resultado comercial. El CLI limpia los almacenes locales al iniciar por defecto. No hay fallback a fixtures.

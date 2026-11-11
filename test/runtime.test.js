@@ -10,7 +10,7 @@ const response = (body, status = 200) => new Response(body, { status, headers: {
 
 test('flujo live simulado guarda Dataset desde HTML real y sin fallback', { skip: !html && 'Falta fixtures/iphone.html' }, async () => {
   const logs = logger(); let saved; let calls = 0;
-  const output = await executeSearch({ query: 'iPhone 15 Pro', maxResults: 2, diagnosticMode: true }, {
+  const output = await executeSearch({ query: 'iPhone 15 Pro', proxyConfiguration: { useApifyProxy: false }, maxResults: 2, diagnosticMode: true }, {
     actor: { pushData: async (item) => { saved = item; } }, log: logs,
     fetchImpl: async (url, options) => { calls++; assert.equal(new URL(url).searchParams.get('q'), 'iPhone 15 Pro'); assert.equal(options.redirect, 'manual'); return response(html); },
   });
@@ -23,9 +23,9 @@ test('flujo live simulado guarda Dataset desde HTML real y sin fallback', { skip
 });
 
 test('403, 429, red y 301 terminan sin escribir ni reintentar', async () => {
-  for (const [status, code] of [[403, 'ACCESS_DENIED'], [429, 'RATE_LIMITED'], [301, 'UNEXPECTED_REDIRECT'], [0, 'NETWORK_ERROR']]) {
+  for (const [status, code] of [[403, 'ACCESS_DENIED'], [429, 'RATE_LIMITED'], [301, 'INVALID_REDIRECT'], [0, 'NETWORK_ERROR']]) {
     let calls = 0; let written = false;
-    await assert.rejects(executeSearch({ query: 'x' }, { actor: { pushData: () => { written = true; } }, log: logger(), fetchImpl: async () => { calls++; if (!status) throw new Error('offline'); return response('', status); } }), { code });
+    await assert.rejects(executeSearch({ query: 'x', proxyConfiguration: { useApifyProxy: false } }, { actor: { pushData: () => { written = true; } }, log: logger(), fetchImpl: async () => { calls++; if (!status) throw new Error('offline'); return response('', status); } }), { code });
     assert.equal(written, false);
     assert.equal(calls, 1);
   }
@@ -59,7 +59,7 @@ test('presupuestos normal y diagnóstico son configurables, finitos y aplicados 
 
   const run = async (diagnosticMode, delayMs, env) => {
     const logs = logger();
-    const result = await executeSearch({ query: 'iPhone 15 Pro', diagnosticMode }, {
+    const result = await executeSearch({ query: 'iPhone 15 Pro', proxyConfiguration: { useApifyProxy: false }, diagnosticMode }, {
       actor: { pushData: async () => {} }, log: logs, env,
       fetchImpl: async (_url, { signal }) => {
         await new Promise((resolve) => setTimeout(resolve, delayMs));
@@ -86,7 +86,7 @@ test('el modo fixture no se activa en Cloud', async () => {
   const saved = process.env.APIFY_IS_AT_HOME;
   try {
     process.env.APIFY_IS_AT_HOME = '1';
-    await assert.rejects(executeSearch({ query: 'x' }, { actor: {}, log: logger(), fixture: 'iphone.html' }), { code: 'INVALID_MODE' });
+    await assert.rejects(executeSearch({ query: 'x', proxyConfiguration: { useApifyProxy: false } }, { actor: {}, log: logger(), fixture: 'iphone.html' }), { code: 'INVALID_MODE' });
   } finally { if (saved === undefined) delete process.env.APIFY_IS_AT_HOME; else process.env.APIFY_IS_AT_HOME = saved; }
 });
 

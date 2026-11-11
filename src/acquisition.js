@@ -30,21 +30,60 @@ export async function acquireFixture(filename) {
   catch (error) { throw new SearchError('FIXTURE_ERROR', 'No se pudo leer la captura local.', { cause: error }); }
 }
 
-// Una sola solicitud; no se siguen redirecciones ni se reintentan bloqueos.
-export function createHttpAcquirer({ fetchImpl, timeoutMs = HTTP_TIMEOUT_LIMITS.normalMs, onHttp = () => {}, onTiming = () => {}, proxy = false } = {}) {
+// Redirecciones solo en modo directo explícito; nunca reintentar bloqueos.
+export function safeSearchUrl(value) {
+  const url = new URL(value);
+  for (const key of [...url.searchParams.keys()]) url.searchParams.set(key, '[REDACTED]');
+  url.hash = '';
+  return url.href;
+}
+
+function redirectTarget(location, current) {
+  let next;
+  try { next = new URL(location, current); }
+  catch { throw new SearchError('INVALID_REDIRECT', 'Location inválido.'); }
+  if (['www.backmarket.com', 'backmarket.com'].includes(next.hostname) && next.pathname === '/testchallengepage') {
+    throw new SearchError('ACCESS_CHALLENGE', 'Back Market redirige a /testchallengepage; acceso detenido.');
+  }
+  if (next.protocol !== 'https:' || !['www.backmarket.com', 'backmarket.com'].includes(next.hostname)
+    || next.port || next.username || next.password || !/^\/en-us\/search\/?$/.test(next.pathname)) {
+    throw new SearchError('UNSAFE_REDIRECT', 'Destino de redirección no permitido.');
+  }
+  // Una canonicalización puede omitir q; no perder la consulta original.
+  if (!next.searchParams.has('q')) next.searchParams.set('q', new URL(current).searchParams.get('q'));
+  next.hash = '';
+  return next.href;
+}
+export function createHttpAcquirer({ fetchImpl, timeoutMs = HTTP_TIMEOUT_LIMITS.normalMs, onHttp = () => {}, onTiming = () => {}, proxy = false, followDirectRedirects = false, onFinalUrl = () => {} } = {}) {
   if (typeof fetchImpl !== 'function') throw new TypeError('Se requiere un transporte HTTP explícito.');
   if (!Number.isInteger(timeoutMs) || timeoutMs < 1 || timeoutMs > HTTP_TIMEOUT_LIMITS.diagnosticMs) throw new TypeError('Timeout inválido.');
   return async ({ query, page = 1 }) => {
     if (page !== 1) throw new SearchError('PAGE_UNVERIFIED', 'La paginación HTTP todavía no está verificada.');
-    const url = buildSearchUrl(query);
+    let url = buildSearchUrl(query);
     const controller = new AbortController();
     const started = Date.now();
     let stage = 'request_before_headers';
     const timer = setTimeout(() => controller.abort(), timeoutMs);
     try {
-      const response = await fetchImpl(url, { signal: controller.signal, redirect: 'manual', headers: { accept: 'text/html' } });
+      let response;
+      const visited = new Set([url]);
+      for (let redirects = 0; ; redirects++) {
+        controller.signal.throwIfAborted();
+        stage = 'request_before_headers';
+        response = await fetchImpl(url, { signal: controller.signal, redirect: 'manual', headers: { accept: 'text/html' } });
+        onHttp(response.status, safeSearchUrl(url));
+        if (!followDirectRedirects || proxy || ![301, 302, 303, 307, 308].includes(response.status)) break;
+        const location = response.headers.get('location');
+        await response.body?.cancel().catch(() => {});
+        if (!location) throw new SearchError('INVALID_REDIRECT', 'Redirección sin Location.');
+        if (redirects >= 5) throw new SearchError('TOO_MANY_REDIRECTS', 'Se superó el máximo de cinco redirecciones.');
+        const next = redirectTarget(location, url);
+        if (visited.has(next)) throw new SearchError('REDIRECT_LOOP', 'Bucle de redirecciones.');
+        visited.add(next);
+        url = next;
+      }
+      onFinalUrl(safeSearchUrl(url));
       stage = 'response_body';
-      onHttp(response.status);
       let httpError;
       if (response.status === 403 || response.status === 401) httpError = new SearchError('ACCESS_DENIED', `Acceso denegado: HTTP ${response.status}.`);
       else if (response.status === 429) httpError = new SearchError('RATE_LIMITED', 'Back Market respondió HTTP 429.');
