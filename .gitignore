@@ -10,3 +10,14 @@ coverage/
 .DS_Store
 credentials.json
 *token*
+
+# Local credentials and browser state
+*credential*
+*secret*
+*.pem
+*.key
+*.p12
+*.pfx
+cookies*
+browser-profile*/
+playwright/.auth/

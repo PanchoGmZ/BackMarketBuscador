@@ -60,3 +60,7 @@ apify run
 ```
 
 El Dataset se guarda en `storage/datasets/default/`. La CLI puede purgar el almacenamiento antes de iniciar; `input.json` está fuera de `storage`, así que se conserva. Los errores de red, desafío o parsing no escriben un registro comercial.
+
+## Dependencias y seguridad
+
+La revision `npm audit --omit=dev` del 2026-11-11 informo 8 vulnerabilidades: 3 moderadas y 5 altas, en Apify y dependencias transitivas. Revisar avisos y compatibilidad antes de actualizar. `input.json` esta versionado: no incluir credenciales ni datos sensibles.

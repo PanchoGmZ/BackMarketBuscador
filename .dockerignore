@@ -7,3 +7,16 @@ fixtures
 coverage
 
 input.json
+
+# Local credentials and browser state
+*token*
+*credential*
+*secret*
+*.pem
+*.key
+*.p12
+*.pfx
+*.tmp
+cookies*
+browser-profile
+playwright/.auth
