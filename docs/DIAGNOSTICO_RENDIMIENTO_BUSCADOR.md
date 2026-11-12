@@ -44,3 +44,7 @@ Usar un build identificado, el mismo Input y proxy, y obtener varias ejecuciones
 ## Validacion local
 
 `npm ci`, `npm test` y `apify validate-schema` comprueban instalacion, pruebas y esquemas. Los tests usan HTML real guardado cuando existe y transporte/proxy simulado; no sustituyen la comparacion Cloud. No se realizaron solicitudes pagadas en esta tarea.
+
+## Preparacion offline: copias del cuerpo HTTP
+
+Se preparo `node scripts/benchmark-buffers.js` para comparar el ensamblaje actual `Buffer.concat(chunks.map(Buffer.from))` con `Buffer.concat(chunks)`, comprobando igualdad binaria. En esta maquina, con la captura local de 1.031.956 bytes, dos tandas de 200 ensamblajes midieron respectivamente 163,6 y 160,3 ms para el metodo actual, frente a 67,8 y 69,5 ms para el candidato. Es un microbenchmark secuencial, no una medicion de extremo a extremo ni una prueba en Cloud; no incorpora red, descompresion, parsing ni variaciones de carga. El candidato no se ha integrado en produccion. Antes de considerarlo se necesitan pruebas de chunks mixtos, Unicode, limite de 4 MiB, excepciones y comparacion de Dataset, seguidas de mediciones Cloud autorizadas.

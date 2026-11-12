@@ -1,10 +1,4 @@
 {
-  "query": "iphone 13",
-  "maxResults": 10,
-  "page": 1,
-  "diagnosticMode": true,
-  "proxyConfiguration": {
-    "useApifyProxy": true,
-    "apifyProxyGroups": ["UNBLOCKER"]
-  }
+  "query": "iphone 13"
+
 }

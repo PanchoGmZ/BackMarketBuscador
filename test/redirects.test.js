@@ -54,7 +54,7 @@ test('Cloud predeterminado conserva UNBLOCKER, TLS y rechazo de redirecciones', 
   let calls = 0; let closed = false;
   const agent = { close: async () => { closed = true; } };
   await assert.rejects(executeSearch({ query: 'x' }, {
-    actor: { createProxyConfiguration: async (config) => {
+    actor: { isAtHome: () => true, createProxyConfiguration: async (config) => {
       assert.deepEqual(config, { useApifyProxy: true, apifyProxyGroups: ['UNBLOCKER'] });
       return { newUrl: async () => 'http://user:pass@proxy.test:8000' };
     } }, log: { info() {} },

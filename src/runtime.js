@@ -3,6 +3,7 @@ import { acquireFixture, buildSearchUrl, createHttpAcquirer, resolveHttpTimeoutM
 import { parseSearchHtml } from './parser.js';
 import { runSearch, validateInput, SearchError } from './search.js';
 import { classifyConnectionError } from './diagnostics.js';
+import { effectiveProxyConfiguration } from './input.js';
 
 function proxyError(message, cause, stage) {
   const error = new SearchError('PROXY_ERROR', message, { cause });
@@ -26,7 +27,8 @@ export async function executeSearch(input, { actor, log, fixture, fetchImpl = ht
       acquire = () => acquireFixture(fixture);
     } else {
       const proxyStarted = performance.now();
-      const proxyConfiguration = input.proxyConfiguration ?? { useApifyProxy: true, apifyProxyGroups: ['UNBLOCKER'] };
+      const atHome = typeof actor.isAtHome === 'function' ? actor.isAtHome() : env.APIFY_IS_AT_HOME === '1' || env.APIFY_IS_AT_HOME === 'true';
+      const proxyConfiguration = effectiveProxyConfiguration(input, atHome);
       const direct = proxyConfiguration.useApifyProxy === false && !proxyConfiguration.proxyUrls?.length;
       if (!direct) {
         let proxy;

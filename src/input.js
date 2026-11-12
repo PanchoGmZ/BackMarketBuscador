@@ -8,6 +8,12 @@ function isApifyCloud(env) {
   return env.APIFY_IS_AT_HOME === '1' || env.APIFY_IS_AT_HOME === 'true';
 }
 
+// Production always uses the owner's UNBLOCKER; local runs default to direct.
+export function effectiveProxyConfiguration(input, atHome) {
+  if (atHome) return { useApifyProxy: true, apifyProxyGroups: ['UNBLOCKER'] };
+  return input?.proxyConfiguration ?? { useApifyProxy: false };
+}
+
 /** Prefer any platform/CLI input. Read the repository default only for a local run with no input. */
 export async function loadActorInput({ actor, env = process.env, inputPath = DEFAULT_LOCAL_INPUT_PATH } = {}) {
   if (!actor || typeof actor.getInput !== 'function') throw new TypeError('Se requiere Actor.getInput().');

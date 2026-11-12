@@ -5,7 +5,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { loadActorInput } from '../src/input.js';
 
-const valid = { query: 'iphone 13', maxResults: 10, page: 1, diagnosticMode: true, proxyConfiguration: { useApifyProxy: true, apifyProxyGroups: ['UNBLOCKER'] } };
+const valid = { query: 'iphone 13' };
 
 async function inTempDir(fn) {
   const dir = await mkdtemp(join(tmpdir(), 'backmarket-input-'));
