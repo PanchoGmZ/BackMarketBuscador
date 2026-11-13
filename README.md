@@ -24,7 +24,7 @@ En Cloud se selecciona siempre Apify Proxy con el grupo UNBLOCKER. La configurac
 
 ## Ejecucion local y pruebas
 
-Sin argumentos explicitos de Input, apify run lee storage/example/key_value_stores/default/INPUT.json. Cloud utiliza solo el Input de Apify.
+Sin argumentos explicitos de Input, apify run lee storage/key_value_stores/default/INPUT.json. Cloud utiliza solo el Input de Apify.
 
 `npm test` ejecuta las pruebas offline. La captura local `fixtures/iphone.html` se excluye de Git y Docker; algunas pruebas se omiten si falta. El modo `BACKMARKET_FIXTURE` solo se permite en local. Los resultados de capturas son historicos.
 
@@ -40,13 +40,13 @@ La configuracion actual de ProxyAgent usa `requestTls: { rejectUnauthorized: fal
 
 ## Dependencias y seguridad
 
-El Input local versionado esta en storage/example/key_value_stores/default/INPUT.json. Docker excluye storage completo y el resto de los stores locales no se publica.
+El Input local versionado esta en storage/key_value_stores/default/INPUT.json. Docker excluye storage completo y el resto de los stores locales no se publica.
 
 ## Oxylabs local
 
 En ejecuciones locales, el bootstrap carga .env.local con process.loadEnvFile de Node.js. Si hay usuario y password, usa Oxylabs; sin ambas credenciales, conserva el modo directo. El archivo .env.local queda excluido de Git y Docker.
 
-La entrada local predeterminada es storage/example/key_value_stores/default/INPUT.json. Edita ese archivo y ejecuta apify run sin argumentos. El input.json de la raiz ya no se usa. Si el CLI entrega un Input explicito distinguible, ese Input mantiene prioridad. En Cloud se usa exclusivamente el Input de Apify.
+La entrada local predeterminada es storage/key_value_stores/default/INPUT.json. Edita ese archivo y ejecuta apify run sin argumentos. El input.json de la raiz ya no se usa. Si el CLI entrega un Input explicito distinguible, ese Input mantiene prioridad. En Cloud se usa exclusivamente el Input de Apify.
 
 El archivo de entorno normal es .env.local. Puede reutilizarse desde BackMarketJS con este comando PowerShell, que no sobrescribe un destino existente:
 
@@ -54,6 +54,6 @@ El archivo de entorno normal es .env.local. Puede reutilizarse desde BackMarketJ
 
 Si no copias el archivo, crea .env.local con OXYLABS_USERNAME, OXYLABS_PASSWORD, OXYLABS_HOST=unblock.oxylabs.io y OXYLABS_PORT=60000. Configura la password solo localmente; puede contener el signo =. No guardes credenciales en el Input.
 
-Los logs deben indicar [INPUT] Origen=storage/example/key_value_stores/default/INPUT.json y [PROXY] Tipo=oxylabs. El Dataset local queda en storage/datasets/default/. Para volver al modo directo, deja vacios usuario y password en .env.local o renombra el archivo.
+Los logs deben indicar [INPUT] Origen=storage/key_value_stores/default/INPUT.json y [PROXY] Tipo=oxylabs. El Dataset local queda en storage/datasets/default/. Para volver al modo directo, deja vacios usuario y password en .env.local o renombra el archivo.
 
 Cloud sigue seleccionando UNBLOCKER y nunca carga .env.local ni el Input local. Oxylabs mantiene TLS verificada hacia el proxy y desactiva solo la verificacion del certificado del sitio, requerido por Web Unblocker segun https://oxylabs.io/resources/integrations/terminal.

@@ -7,7 +7,7 @@ import { fileURLToPath } from 'node:url';
 import { DEFAULT_LOCAL_INPUT_PATH, LOCAL_INPUT_SOURCE, loadActorInput } from '../src/input.js';
 
 const valid = { query: 'iphone 13' };
-const source = 'storage/example/key_value_stores/default/INPUT.json';
+const source = 'storage/key_value_stores/default/INPUT.json';
 
 async function inTempDir(fn) {
   const dir = await mkdtemp(join(tmpdir(), 'backmarket-input-'));
@@ -15,7 +15,7 @@ async function inTempDir(fn) {
 }
 
 test('el Input local predeterminado apunta al INPUT.json elegido y no existe input.json en la raiz', async () => {
-  const expected = fileURLToPath(new URL('../storage/example/key_value_stores/default/INPUT.json', import.meta.url));
+  const expected = fileURLToPath(new URL('../storage/key_value_stores/default/INPUT.json', import.meta.url));
   assert.equal(DEFAULT_LOCAL_INPUT_PATH, expected);
   assert.equal(LOCAL_INPUT_SOURCE, source);
   await assert.rejects(readFile(new URL('../input.json', import.meta.url)), { code: 'ENOENT' });
