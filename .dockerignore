@@ -20,3 +20,4 @@ input.json
 cookies*
 browser-profile
 playwright/.auth
+.env.local

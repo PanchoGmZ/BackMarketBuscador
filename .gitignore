@@ -4,6 +4,7 @@ fixtures/
 .env
 .env.*
 !.env.example
+!.env.local.example
 *.log
 *.tmp
 coverage/
@@ -21,3 +22,4 @@ credentials.json
 cookies*
 browser-profile*/
 playwright/.auth/
+.env.local

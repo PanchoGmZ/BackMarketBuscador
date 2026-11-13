@@ -4,6 +4,7 @@ import { parseSearchHtml } from './parser.js';
 import { runSearch, validateInput, SearchError } from './search.js';
 import { classifyConnectionError } from './diagnostics.js';
 import { effectiveProxyConfiguration } from './input.js';
+import { getOxylabsProxyConfig } from './oxylabs.js';
 
 function proxyError(message, cause, stage) {
   const error = new SearchError('PROXY_ERROR', message, { cause });
@@ -28,31 +29,45 @@ export async function executeSearch(input, { actor, log, fixture, fetchImpl = ht
     } else {
       const proxyStarted = performance.now();
       const atHome = typeof actor.isAtHome === 'function' ? actor.isAtHome() : env.APIFY_IS_AT_HOME === '1' || env.APIFY_IS_AT_HOME === 'true';
-      const proxyConfiguration = effectiveProxyConfiguration(input, atHome);
-      const direct = proxyConfiguration.useApifyProxy === false && !proxyConfiguration.proxyUrls?.length;
-      if (!direct) {
-        let proxy;
-        try { proxy = await actor.createProxyConfiguration(proxyConfiguration); }
-        catch (error) { throw proxyError('No se pudo configurar el proxy de Apify.', error, 'proxy_configuration'); }
-        if (proxy) {
-          let url;
-          try {
-            url = await proxy.newUrl();
-            const parsed = new URL(url);
-            if (!['http:', 'https:'].includes(parsed.protocol)) throw new Error('Unsupported proxy protocol');
-            if (Boolean(parsed.username) !== Boolean(parsed.password)) throw new Error('Incomplete proxy credentials');
-            dispatcher = makeProxyAgent(url, { requestTls: { rejectUnauthorized: false } });
-            const type = proxyConfiguration.useApifyProxy ? 'apify' : 'personalizado';
-            const groups = proxyConfiguration.apifyProxyGroups;
-            const safeGroups = Array.isArray(groups) ? groups.filter((group) => typeof group === 'string' && /^[A-Z0-9_-]{1,40}$/.test(group)) : [];
-            log.info(`[PROXY] Tipo=${type}; protocolo=${parsed.protocol.slice(0, -1)}; grupos=${safeGroups.length ? safeGroups.join(',') : 'automático'}; credenciales=${Boolean(parsed.username && parsed.password) ? 'presentes' : 'ausentes'}.`);
-            log.info('[TLS] {"verified":false}');
-          } catch (error) { throw proxyError('No se pudo inicializar el proxy.', error, 'proxy_initialization'); }
-        } else {
-          if (proxyConfiguration.useApifyProxy === true || proxyConfiguration.proxyUrls?.length) throw proxyError('El SDK no devolvió el proxy solicitado.', new Error('Proxy configuration missing'), 'proxy_configuration');
-          log.info('[PROXY] Conexión directa.');
-        }
-      } else log.info('[PROXY] Conexión directa.');
+      let direct = false;
+      const oxylabsProxy = atHome ? null : getOxylabsProxyConfig(env);
+      if (oxylabsProxy) {
+        try {
+          dispatcher = makeProxyAgent(oxylabsProxy.uri, {
+            token: oxylabsProxy.token,
+            proxyTls: { rejectUnauthorized: true },
+            requestTls: { rejectUnauthorized: false },
+          });
+        } catch (error) { throw proxyError('No se pudo inicializar Oxylabs Web Unblocker.', error, 'proxy_initialization'); }
+        log.info('[PROXY] Tipo=oxylabs; protocolo=https; credenciales=presentes.');
+        log.info('[TLS] {"proxyVerified":true,"targetVerified":false}');
+      } else {
+        const proxyConfiguration = effectiveProxyConfiguration(input, atHome);
+        direct = proxyConfiguration.useApifyProxy === false && !proxyConfiguration.proxyUrls?.length;
+        if (!direct) {
+          let proxy;
+          try { proxy = await actor.createProxyConfiguration(proxyConfiguration); }
+          catch (error) { throw proxyError('No se pudo configurar el proxy de Apify.', error, 'proxy_configuration'); }
+          if (proxy) {
+            let url;
+            try {
+              url = await proxy.newUrl();
+              const parsed = new URL(url);
+              if (!['http:', 'https:'].includes(parsed.protocol)) throw new Error('Unsupported proxy protocol');
+              if (Boolean(parsed.username) !== Boolean(parsed.password)) throw new Error('Incomplete proxy credentials');
+              dispatcher = makeProxyAgent(url, { requestTls: { rejectUnauthorized: false } });
+              const type = proxyConfiguration.useApifyProxy ? 'apify' : 'personalizado';
+              const groups = proxyConfiguration.apifyProxyGroups;
+              const safeGroups = Array.isArray(groups) ? groups.filter((group) => typeof group === 'string' && /^[A-Z0-9_-]{1,40}$/.test(group)) : [];
+              log.info(`[PROXY] Tipo=${type}; protocolo=${parsed.protocol.slice(0, -1)}; grupos=${safeGroups.length ? safeGroups.join(',') : 'automático'}; credenciales=${Boolean(parsed.username && parsed.password) ? 'presentes' : 'ausentes'}.`);
+              log.info('[TLS] {"verified":false}');
+            } catch (error) { throw proxyError('No se pudo inicializar el proxy.', error, 'proxy_initialization'); }
+          } else {
+            if (proxyConfiguration.useApifyProxy === true || proxyConfiguration.proxyUrls?.length) throw proxyError('El SDK no devolvió el proxy solicitado.', new Error('Proxy configuration missing'), 'proxy_configuration');
+            log.info('[PROXY] Conexión directa.');
+          }
+        } else log.info('[PROXY] Conexión directa.');
+      }
       metrics.proxySetupMs = performance.now() - proxyStarted;
       const effectiveUrl = new URL(buildSearchUrl(params.query));
       effectiveUrl.searchParams.set('q', '[REDACTED]');

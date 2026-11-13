@@ -1,5 +1,6 @@
 import { execSync } from 'node:child_process';
 import { SearchError } from './search.js';
+import { getOxylabsProxyConfig } from './oxylabs.js';
 
 function getStoredApifyToken() {
   try {
@@ -26,6 +27,7 @@ export function hydrateLocalApifyToken({ env = process.env, readToken = getStore
 
 export function assertLocalProxyAuth(input, env = process.env) {
   if (env.APIFY_IS_AT_HOME === '1' || env.APIFY_IS_AT_HOME === 'true') return;
+  if (getOxylabsProxyConfig(env)) return;
   const proxy = input?.proxyConfiguration;
   if (proxy?.useApifyProxy === false || proxy?.proxyUrls?.length) return;
   if (env.APIFY_TOKEN || env.APIFY_PROXY_PASSWORD) return;

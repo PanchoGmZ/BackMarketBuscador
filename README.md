@@ -41,3 +41,17 @@ La configuracion actual de ProxyAgent usa `requestTls: { rejectUnauthorized: fal
 ## Dependencias y seguridad
 
 La revision `npm audit --omit=dev` del 2026-11-11 informo 8 vulnerabilidades: 3 moderadas y 5 altas, en Apify y dependencias transitivas. Revisar avisos y compatibilidad antes de actualizar. `input.json` esta versionado: no incluir credenciales ni datos sensibles.
+
+## Oxylabs local
+
+En ejecuciones locales, apify run carga .env.local con process.loadEnvFile de Node.js y selecciona Oxylabs cuando existen usuario y password. El ejemplo versionado es .env.local.example; .env.local queda fuera de Git y Docker. Si no hay usuario ni password, se conserva el modo directo local. Si solo se configura uno, la ejecucion falla con un error claro.
+
+Para reutilizar la configuracion privada de BackMarketJS una sola vez, ejecuta en PowerShell desde cualquier carpeta:
+
+    Copy-Item -LiteralPath 'C:\Users\USUARIO\Desktop\backmarket-scraper-js\.env.local' -Destination 'C:\Users\USUARIO\Desktop\backmarket-buscador\.env.local' -NoClobber
+
+El comando no sobrescribe un .env.local existente. Si no vas a copiarlo, crea el archivo desde .env.local.example y reemplaza localmente OXYLABS_PASSWORD; los signos = pueden escribirse directamente. No guardes la password en input.json.
+
+Edita input.json y ejecuta apify run. La consola debe mostrar [INPUT] Origen=input.json y [PROXY] Tipo=oxylabs. El Dataset local queda en storage/datasets/default/. Para volver al modo directo, deja vacios OXYLABS_USERNAME y OXYLABS_PASSWORD en .env.local o renombra ese archivo temporalmente.
+
+Cloud sigue leyendo solo el Input de Apify y seleccionando UNBLOCKER; nunca carga .env.local ni el input.json local. En Oxylabs se verifica TLS hacia el proxy y se desactiva solo la verificacion del certificado del sitio, requerido por Web Unblocker segun https://oxylabs.io/resources/integrations/terminal.
