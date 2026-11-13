@@ -2,7 +2,8 @@ import { readFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import { SearchError, validateInput } from './search.js';
 
-const DEFAULT_LOCAL_INPUT_PATH = fileURLToPath(new URL('../input.json', import.meta.url));
+export const DEFAULT_LOCAL_INPUT_PATH = fileURLToPath(new URL('../storage/example/key_value_stores/default/INPUT.json', import.meta.url));
+export const LOCAL_INPUT_SOURCE = 'storage/example/key_value_stores/default/INPUT.json';
 
 function isApifyCloud(env) {
   return env.APIFY_IS_AT_HOME === '1' || env.APIFY_IS_AT_HOME === 'true';
@@ -20,15 +21,15 @@ export async function loadActorInput({ actor, env = process.env, inputPath = DEF
   const provided = await actor.getInput();
   if (isApifyCloud(env)) return { input: provided, source: 'apify' };
   const inputKey = env.APIFY_INPUT_KEY ?? env.ACTOR_INPUT_KEY;
-  const cliDefaultStoreInput = inputKey === 'INPUT';
-  if (provided !== undefined && provided !== null && !cliDefaultStoreInput) return { input: provided, source: 'apify' };
+  const explicitCliInput = inputKey !== undefined && inputKey !== 'INPUT';
+  if (provided !== undefined && provided !== null && explicitCliInput) return { input: provided, source: 'apify' };
 
   let input;
   try {
     input = JSON.parse((await readFile(inputPath, 'utf8')).replace(/^\uFEFF/, ''));
   } catch (cause) {
-    throw new SearchError('LOCAL_INPUT_ERROR', 'No se pudo leer input.json local como JSON válido.', { cause });
+    throw new SearchError('LOCAL_INPUT_ERROR', 'No se pudo leer storage/example/key_value_stores/default/INPUT.json como JSON valido.', { cause });
   }
   validateInput(input);
-  return { input, source: 'input.json' };
+  return { input, source: LOCAL_INPUT_SOURCE };
 }

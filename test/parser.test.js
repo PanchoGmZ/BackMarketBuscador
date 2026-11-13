@@ -52,8 +52,11 @@ test('el SDK escribe el Dataset local desde la captura real', { skip: !html && '
   try {
     const inputDir = join(dir, 'key_value_stores', 'default');
     await mkdir(inputDir, { recursive: true });
-    await writeFile(join(inputDir, 'INPUT.json'), JSON.stringify({ query: 'iPhone 15 Pro', maxResults: 2 }));
+    await writeFile(join(inputDir, '__CLI_INPUT.json'), JSON.stringify({ query: 'iPhone 15 Pro', maxResults: 2 }));
     const env = { ...process.env, CRAWLEE_STORAGE_DIR: dir, BACKMARKET_FIXTURE: 'iphone.html', APIFY_PURGE_ON_START: 'false' };
+    env.APIFY_INPUT_KEY = '__CLI_INPUT';
+    delete env.ACTOR_INPUT_KEY;
+    delete env.CRAWLEE_INPUT_KEY;
     delete env.APIFY_TOKEN;
     delete env.APIFY_IS_AT_HOME;
     const child = spawnSync(process.execPath, ['src/main.js'], { cwd: resolve('.'), env, encoding: 'utf8', timeout: 30000 });
