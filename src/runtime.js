@@ -17,6 +17,7 @@ export async function executeSearch(input, { actor, log, fixture, fetchImpl = ht
   const metrics = { proxySetupMs: null, acquisitionMs: null, parsingMs: null, cardsParsed: null, deduplicationMs: null, datasetMs: null, dispatcherCloseMs: null };
   const params = validateInput(input);
   let dispatcher;
+  let atHome = false;
   let failure;
   log.info('[INICIO] Búsqueda iniciada.');
   try {
@@ -28,7 +29,7 @@ export async function executeSearch(input, { actor, log, fixture, fetchImpl = ht
       acquire = () => acquireFixture(fixture);
     } else {
       const proxyStarted = performance.now();
-      const atHome = typeof actor.isAtHome === 'function' ? actor.isAtHome() : env.APIFY_IS_AT_HOME === '1' || env.APIFY_IS_AT_HOME === 'true';
+      atHome = typeof actor.isAtHome === 'function' ? actor.isAtHome() : env.APIFY_IS_AT_HOME === '1' || env.APIFY_IS_AT_HOME === 'true';
       let direct = false;
       const oxylabsProxy = atHome ? null : getOxylabsProxyConfig(env);
       if (oxylabsProxy) {
@@ -93,7 +94,14 @@ export async function executeSearch(input, { actor, log, fixture, fetchImpl = ht
     }, onDeduplication: ({ elapsedMs }) => { metrics.deduplicationMs = elapsedMs; }, write: async (data) => {
       log.info(`[PRODUCTOS_ENCONTRADOS] ${data.total}`);
       const start = performance.now();
-      try { await actor.pushData(data); } finally { metrics.datasetMs = performance.now() - start; }
+      try {
+        if (!atHome && typeof actor.openDataset === 'function') {
+          const previousDataset = await actor.openDataset();
+          await previousDataset.drop();
+          log.info('[DATASET] Dataset local anterior reemplazado.');
+        }
+        await actor.pushData(data);
+      } finally { metrics.datasetMs = performance.now() - start; }
       log.info(`[GUARDADO] Dataset escrito en ${performance.now() - start} ms.`);
     } });
     log.info(`[FIN] Resultados: ${output.total}; tiempo: ${performance.now() - started} ms.`);

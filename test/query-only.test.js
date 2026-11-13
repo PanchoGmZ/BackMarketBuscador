@@ -26,17 +26,17 @@ for (const oldProxy of [undefined,{useApifyProxy:false},{useApifyProxy:true,apif
  test('Cloud usa UNBLOCKER para proxy previo '+JSON.stringify(oldProxy),{skip:!html},async()=>{
   let config,saved,calls=0,closed=0;
   const agent={close:async()=>{closed++}};
-  const actor={isAtHome:()=>true,createProxyConfiguration:async c=>{config=c;return {newUrl:async()=> 'http://user:pass@proxy.test:8000'}},pushData:async value=>{saved=value}};
+  const actor={isAtHome:()=>true,createProxyConfiguration:async c=>{config=c;return {newUrl:async()=> 'http://user:pass@proxy.test:8000'}},openDataset:async()=>assert.fail('Cloud no debe limpiar el Dataset'),pushData:async value=>{saved=value}};
   const input={query:'iPhone 15 Pro',...(oldProxy===undefined?{}:{proxyConfiguration:oldProxy})};
   const result=await executeSearch(input,{actor,log:log(),makeProxyAgent:(_url,opts)=>{assert.deepEqual(opts,{requestTls:{rejectUnauthorized:false}});return agent;},fetchImpl:async (_url,opts)=>{assert.equal(opts.dispatcher,agent);calls++;return new Response(html,{headers:{'content-type':'text/html'}})}});
   assert.deepEqual(config,unblocker);assert.equal(result.total,10);assert.deepEqual(saved,result);assert.equal(calls,1);assert.equal(closed,1);
  });
 }
 test('local query unico es directo, sin ProxyAgent, y guarda resultados', {skip:!html},async()=>{
- let saved;
- const actor={isAtHome:()=>false,createProxyConfiguration:()=>assert.fail('proxy innecesario'),pushData:async x=>{saved=x}};
+ let saved; const writes=[];
+ const actor={isAtHome:()=>false,createProxyConfiguration:()=>assert.fail('proxy innecesario'),openDataset:async()=>{writes.push('open');return {drop:async()=>{writes.push('drop')}}},pushData:async x=>{writes.push('write');saved=x}};
  const output=await executeSearch({query:'iPhone 15 Pro'},{actor,log:log(),makeProxyAgent:()=>assert.fail('proxy innecesario'),fetchImpl:async (_url,o)=>{assert.equal(o.dispatcher,undefined);return new Response(html,{headers:{'content-type':'text/html'}})}});
- assert.equal(output.total,10);assert.deepEqual(output,saved);assert.equal(output.results[0].price,480.2);
+ assert.equal(output.total,10);assert.deepEqual(output,saved);assert.deepEqual(writes,['open','drop','write']);assert.equal(output.results[0].price,480.2);
 });
 test('Cloud propaga error de UNBLOCKER sin fallback directo',async()=>{
  let called=0;
